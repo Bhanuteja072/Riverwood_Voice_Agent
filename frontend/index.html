@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Riverwood AI Voice Agent</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #fff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .container { width: 420px; background: #1a1d2e; border-radius: 20px; padding: 30px; box-shadow: 0 0 40px rgba(99,179,237,0.15); }
+    h1 { text-align: center; color: #63b3ed; font-size: 1.3rem; margin-bottom: 5px; }
+    .subtitle { text-align: center; color: #718096; font-size: 0.8rem; margin-bottom: 20px; }
+    #chat-box { height: 300px; overflow-y: auto; background: #0f1117; border-radius: 12px; padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .msg { padding: 10px 14px; border-radius: 12px; max-width: 85%; font-size: 0.9rem; line-height: 1.4; }
+    .msg.riya { background: #2d3748; align-self: flex-start; color: #e2e8f0; }
+    .msg.user { background: #2b6cb0; align-self: flex-end; color: #fff; }
+    .msg.label { font-size: 0.7rem; color: #4a5568; text-align: center; align-self: center; }
+    .controls { display: flex; gap: 10px; }
+    #start-btn { flex: 1; padding: 12px; background: #2b6cb0; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; }
+    #start-btn:hover { background: #2c5282; }
+    #mic-btn { width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer; font-size: 1.4rem; transition: all 0.2s; background: #2d3748; }
+    #mic-btn.recording { background: #e53e3e; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+    #text-input { display: flex; gap: 8px; margin-top: 10px; }
+    #text-input input { flex: 1; padding: 10px 14px; background: #2d3748; border: none; border-radius: 10px; color: #fff; font-size: 0.9rem; }
+    #text-input button { padding: 10px 16px; background: #276749; color: white; border: none; border-radius: 10px; cursor: pointer; }
+    #status { text-align: center; color: #68d391; font-size: 0.8rem; margin-top: 10px; min-height: 18px; }
+    #customer-name { width: 100%; padding: 10px; background: #2d3748; border: none; border-radius: 10px; color: #fff; font-size: 0.9rem; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>🏡 Riverwood AI Agent</h1>
+  <p class="subtitle">Riya — Your Personal Property Executive</p>
+  
+  <input id="customer-name" type="text" placeholder="Enter your name (e.g. Rahul Sharma)" />
+  
+  <div id="chat-box">
+    <div class="msg label">Click "Start Call" to begin</div>
+  </div>
+  
+  <div class="controls">
+    <button id="start-btn" onclick="startCall()">📞 Start Call</button>
+    <button id="mic-btn" onclick="toggleMic()">🎤</button>
+  </div>
+  
+  <div id="text-input">
+    <input id="text-msg" placeholder="Or type your message..." onkeydown="if(event.key==='Enter') sendText()" />
+    <button onclick="sendText()">Send</button>
+  </div>
+  
+  <div id="status"></div>
+</div>
+
+<script>
+let sessionId = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+function addMessage(text, sender) {
+  const box = document.getElementById('chat-box');
+  const div = document.createElement('div');
+  div.className = `msg ${sender}`;
+  div.textContent = text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+async function playAudioAndGetHeaders(response) {
+  if (!response.ok) {
+    const err = await response.text();
+    setStatus(`⚠️ Error: ${response.status}`);
+    throw new Error(err);
+  }
+
+  const agentText = decodeURIComponent(response.headers.get('X-Agent-Text') || '');
+  const userText  = decodeURIComponent(response.headers.get('X-User-Text')  || '');
+  const sid = response.headers.get('X-Session-ID');
+
+  if (sid) sessionId = sid;
+  if (userText)  addMessage(userText,  'user');
+  if (agentText) addMessage(agentText, 'riya');
+
+  const blob = await response.blob();
+  const url  = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  setStatus('🔊 Riya is speaking...');
+  setMicDisabled(true);
+
+  // audio.play() returns a Promise; catch autoplay blocks gracefully.
+  try {
+    await audio.play();
+  } catch (e) {
+    setStatus('▶️ Click to play Riya\'s response (autoplay blocked).');
+    audio.controls = true;
+    document.body.appendChild(audio);
+  }
+
+  audio.onended = () => {
+    URL.revokeObjectURL(url);
+    setMicDisabled(false);
+    setStatus('');
+  };
+}
+
+function setMicDisabled(disabled) {
+  document.getElementById('mic-btn').disabled = disabled;
+}
+
+async function startCall() {
+  const name = document.getElementById('customer-name').value.trim() || 'Valued Customer';
+  setStatus('📡 Connecting...');
+  document.getElementById('chat-box').innerHTML = '<div class="msg label">Call connected</div>';
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/start-call?customer_name=${encodeURIComponent(name)}`, { method: 'POST' });
+    await playAudioAndGetHeaders(res);
+  } catch (e) {
+    setStatus('⚠️ Could not connect. Check your server.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function sendText() {
+  if (!sessionId) return setStatus('⚠️ Start a call first');
+  const msg = document.getElementById('text-msg').value.trim();
+  if (!msg) return;
+  document.getElementById('text-msg').value = '';
+  addMessage(msg, 'user');
+  setStatus('💭 Riya is thinking...');
+  try {
+    const res = await fetch(`/respond-text?session_id=${sessionId}&message=${encodeURIComponent(msg)}`, { method: 'POST' });
+    await playAudioAndGetHeaders(res);
+  } catch (e) {
+    setStatus('⚠️ Failed to send message.');
+  }
+}
+
+async function toggleMic() {
+  if (!sessionId) return setStatus('⚠️ Start a call first');
+
+  if (!isRecording) {
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      return setStatus('⚠️ Microphone access denied or unavailable.');
+    }
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      // Stop all mic tracks so the browser removes the red recording indicator.
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      setStatus('📤 Sending audio...');
+      const formData = new FormData();
+      formData.append('audio', blob, 'audio.webm');
+      try {
+        const res = await fetch(`/respond-voice?session_id=${sessionId}`, { method: 'POST', body: formData });
+        await playAudioAndGetHeaders(res);
+      } catch (e) {
+        setStatus('⚠️ Failed to send audio.');
+      }
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    document.getElementById('mic-btn').classList.add('recording');
+    document.getElementById('mic-btn').textContent = '⏹️';
+    setStatus('🎙️ Recording... click to stop');
+  } else {
+    mediaRecorder.stop();
+    isRecording = false;
+    document.getElementById('mic-btn').classList.remove('recording');
+    document.getElementById('mic-btn').textContent = '🎤';
+  }
+}
+</script>
+</body>
+</html>
