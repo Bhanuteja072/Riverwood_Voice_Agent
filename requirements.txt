@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+groq
+openai-whisper
+gtts
+requests
+python-dotenv
+python-multipart
+twilio
+langdetect
