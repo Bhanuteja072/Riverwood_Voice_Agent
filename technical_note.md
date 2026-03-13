@@ -125,6 +125,32 @@ VAPI / Twilio  ←→  Cloud Run (FastAPI) ←→ Redis Sessions
 
 ---
 
+## Phone Call Flow (Twilio)
+
+```
+Twilio dials customer phone
+     |
+Customer picks up
+     |
+POST /twilio-answer
+     |
+Groq LLM
+     |
+ElevenLabs TTS
+     |
+Audio served to Twilio
+     |
+Twilio plays to customer
+     |
+Customer speaks
+     |
+POST /twilio-voice-input
+     |
+(loop continues)
+```
+
+---
+
 ## Production Deployment Path
 
 ```
