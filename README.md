@@ -106,7 +106,8 @@ riverwood-voice-agent/
 │   ├── voice_out.py     # ElevenLabs + gTTS text-to-speech
 │   ├── prompts.py       # Riya's personality + construction data
 │   ├── config.py        # Environment variables
-│   └── call_manager.py  # Twilio integration (production)
+│   └── call_manager.py  # Twilio outbound call management
+│   └── twilio_handler.py  # TwiML response builder
 ├── frontend/
 │   └── index.html       # Browser UI
 ├── .env                 # API keys (do not commit)
@@ -119,6 +120,6 @@ riverwood-voice-agent/
 
 ## Notes
 
-- `call_manager.py` is ready for Twilio integration when real outbound calls are needed
+- Twilio integration is fully implemented — call_manager.py places outbound calls, twilio_handler.py builds TwiML responses
 - For production, replace in-memory sessions with Redis
 - Whisper base model runs locally — no OpenAI API key needed for STT
