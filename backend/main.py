@@ -7,7 +7,6 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
-
 from .agent import get_opening_message, get_response
 from .call_manager import get_call_status, place_outbound_call
 from .twilio_handler import (
@@ -222,7 +221,7 @@ async def twilio_voice_input(
     if not SpeechResult.strip():
         # Re-prompt if no speech detected
         action_url = f"{WEBHOOK_BASE_URL}/twilio-voice-input?session_id={session_id}"
-        reprompt_text = "Mujhe aapki awaaz nahi aayi, kya aap dobara bol sakte hain?"
+        reprompt_text = "I couldn't hear your voice. Could you please speak again?"
         twiml = make_gather_response(
             speech_text=reprompt_text,
             action_url=action_url,
