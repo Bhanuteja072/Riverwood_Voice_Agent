@@ -4,7 +4,7 @@ from .config import GROQ_API_KEY
 from .prompts import get_first_message, get_system_prompt
 
 _MODEL = "llama-3.3-70b-versatile"
-_MAX_TOKENS = 300  # 200 could cut off a 3-4 sentence Hinglish reply mid-word
+_MAX_TOKENS = 512  # 200 could cut off a 3-4 sentence Hinglish reply mid-word
 
 _client = None
 
