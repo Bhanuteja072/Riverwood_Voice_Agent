@@ -21,8 +21,8 @@ def make_gather_response(
         input="speech",           # listen for speech
         action=action_url,        # where to send customer's speech
         method="POST",
-        speech_timeout="4",       # wait 3 seconds after customer stops speaking
-        language="hi-IN en-IN"    # Hindi and Indian English
+        speech_timeout="3",       # wait 1 second after customer stops speaking
+        language="en-IN"          # Indian English only
     )
 
     if voice_url:
@@ -30,15 +30,15 @@ def make_gather_response(
         gather.play(voice_url)
     else:
         # Fallback: Twilio reads the text directly
-        gather.say(speech_text, voice=TWILIO_VOICE, language="hi-IN")
+        gather.say(speech_text, voice=TWILIO_VOICE, language="en-IN")
 
     response.append(gather)
 
     # If customer doesn't speak, re-prompt once
     response.say(
-        "Kya aap mujhe sun pa rahe hain?",
+        "Can you hear me clearly?",
         voice=TWILIO_VOICE,
-        language="hi-IN"
+        language="en-IN"
     )
 
     return str(response)
@@ -48,13 +48,12 @@ def make_voicemail_response(customer_name: str) -> str:
     """TwiML for when call goes to voicemail."""
     response = VoiceResponse()
     response.say(
-        f"Namaste, {customer_name} ji. "
-        "Main Riya bol rahi hoon Riverwood Projects LLP se. "
-        "Aapke liye ek important update hai. "
-        "Please humein 8572070707 par callback karein. "
-        "Dhanyawaad.",
+        f"Hello, {customer_name}. This is Riya from Riverwood Projects LLP. "
+        "I have an important update for you. "
+        "Please call us back at 8572070707. "
+        "Thank you.",
         voice=TWILIO_VOICE,
-        language="hi-IN"
+        language="en-IN"
     )
     response.hangup()
     return str(response)
@@ -64,9 +63,9 @@ def make_end_call_response() -> str:
     """TwiML to gracefully end the call."""
     response = VoiceResponse()
     response.say(
-        "Bahut bahut dhanyawaad. Aapka din shubh ho!",
+        "Thank you very much. Have a wonderful day!",
         voice=TWILIO_VOICE,
-        language="hi-IN"
+        language="en-IN"
     )
     response.hangup()
     return str(response)
