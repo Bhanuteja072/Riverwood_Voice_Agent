@@ -2,7 +2,6 @@ import os
 import tempfile
 import uuid
 from urllib.parse import quote
-
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response
@@ -19,6 +18,9 @@ from .voice_out import text_to_speech
 
 WEBHOOK_BASE_URL = os.getenv("WEBHOOK_BASE_URL", "").rstrip("/")  # your ngrok URL
 _TMP_DIR = tempfile.gettempdir()
+# Pre-generate re-prompt audio at startup so it's ready for every call
+_REPROMPT_TEXT = "Could you please speak a little louder and try again?"
+_REPROMPT_AUDIO_PATH = os.path.join(_TMP_DIR, "reprompt_static.mp3")
 
 
 app = FastAPI(title="Riverwood Voice Agent")
@@ -137,6 +139,18 @@ async def respond_text(session_id: str, message: str):
         },
     )
 
+def _ensure_reprompt_audio():
+    """Generate re-prompt MP3 once and cache it on disk."""
+    if not os.path.exists(_REPROMPT_AUDIO_PATH):
+        try:
+            audio_bytes = text_to_speech(_REPROMPT_TEXT)
+            with open(_REPROMPT_AUDIO_PATH, "wb") as f:
+                f.write(audio_bytes)
+            print("[STARTUP] Re-prompt audio generated with ElevenLabs.")
+        except Exception as e:
+            print(f"[STARTUP] Re-prompt audio generation failed: {e}")
+
+_ensure_reprompt_audio()
 # ── Endpoint 1: Trigger a real outbound call ──────────────────────────────
 @app.post("/initiate-call")
 async def initiate_call(
@@ -183,11 +197,16 @@ async def twilio_answer(customer_name: str = "Valued Customer"):
 
     audio_url = f"{WEBHOOK_BASE_URL}/audio/{audio_filename}"
     action_url = f"{WEBHOOK_BASE_URL}/twilio-voice-input?session_id={session_id}"
+    reprompt_url = (
+    f"{WEBHOOK_BASE_URL}/audio/reprompt_static.mp3"
+    if os.path.exists(_REPROMPT_AUDIO_PATH) else None
+    ) 
 
     twiml = make_gather_response(
         speech_text=opening_text,
         action_url=action_url,
-        voice_url=audio_url
+        voice_url=audio_url,
+        reprompt_url=reprompt_url   # ← pass it here
     )
     return PlainTextResponse(content=twiml, media_type="application/xml")
 
@@ -239,11 +258,17 @@ async def twilio_voice_input(
 
     # End call only if user's speech contains clear goodbye phrases
     goodbye_phrases = [
-        "bye", "alvida", "band karo", "call khatam", "baad mein baat"
+        "ok bye", "bye", "goodbye", "cut the call", "end the call","Talk to you later"," Call me later","alvida", "band karo", "call khatam", "baad mein baat"
     ]
     if any(phrase in SpeechResult.lower() for phrase in goodbye_phrases):
+        audio_bytes = text_to_speech(ai_text)
+        audio_filename = f"{session_id}_goodbye.mp3"
+        audio_path = os.path.join(_TMP_DIR, audio_filename)
+        with open(audio_path, "wb") as f:
+            f.write(audio_bytes)
+        audio_url = f"{WEBHOOK_BASE_URL}/audio/{audio_filename}"
         return PlainTextResponse(
-            content=make_end_call_response(),
+            content=make_end_call_response(audio_url=audio_url, ai_text=ai_text),
             media_type="application/xml"
         )
 
@@ -256,11 +281,15 @@ async def twilio_voice_input(
 
     audio_url = f"{WEBHOOK_BASE_URL}/audio/{audio_filename}"
     action_url = f"{WEBHOOK_BASE_URL}/twilio-voice-input?session_id={session_id}"
-
+    reprompt_url = (
+    f"{WEBHOOK_BASE_URL}/audio/reprompt_static.mp3"
+    if os.path.exists(_REPROMPT_AUDIO_PATH) else None
+    )
     twiml = make_gather_response(
         speech_text=ai_text,
         action_url=action_url,
-        voice_url=audio_url
+        voice_url=audio_url,
+        reprompt_url=reprompt_url   # ← pass it here
     )
     return PlainTextResponse(content=twiml, media_type="application/xml")
 
