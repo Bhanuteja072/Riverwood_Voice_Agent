@@ -27,19 +27,22 @@ def make_gather_response(
 
     if voice_url:
         # Play pre-generated ElevenLabs audio
+        print("[TTS] Using ElevenLabs voice for this call.")
         gather.play(voice_url)
     else:
         # Fallback: Twilio reads the text directly
+        print("[TTS] Using Twilio Polly.Aditi voice for this call.")
         gather.say(speech_text, voice=TWILIO_VOICE, language="en-IN")
 
     response.append(gather)
 
     # If customer doesn't speak, re-prompt once
     response.say(
-        "Can you hear me clearly?",
+        "I'm sorry, I couldn't hear you. Please call us back at your convenience. Goodbye!",
         voice=TWILIO_VOICE,
         language="en-IN"
     )
+    response.hangup()
 
     return str(response)
 
@@ -59,13 +62,13 @@ def make_voicemail_response(customer_name: str) -> str:
     return str(response)
 
 
-def make_end_call_response() -> str:
-    """TwiML to gracefully end the call."""
+def make_end_call_response(audio_url: str | None = None, ai_text: str = "") -> str:
+    """TwiML to gracefully end the call. Plays ElevenLabs audio if available."""
     response = VoiceResponse()
-    response.say(
-        "Thank you very much. Have a wonderful day!",
-        voice=TWILIO_VOICE,
-        language="en-IN"
-    )
+    if audio_url:
+        response.play(audio_url)
+    else:
+        farewell = ai_text or "Thank you very much. Have a wonderful day!"
+        response.say(farewell, voice=TWILIO_VOICE, language="en-IN")
     response.hangup()
     return str(response)
