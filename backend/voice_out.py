@@ -1,4 +1,5 @@
 import io
+import re
 
 import requests
 from gtts import gTTS
@@ -7,6 +8,26 @@ from .config import ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, TTS_MODE
 
 # Seconds to wait for ElevenLabs to respond; keeps calls from hanging.
 _REQUEST_TIMEOUT = 15
+
+
+def clean_for_speech(text: str) -> str:
+    """Minimal cleaning for speech output.
+
+    - remove asterisks and common markdown symbols
+    - replace ' - ' with ', '
+    - collapse and strip extra whitespace
+    """
+    if text is None:
+        return text
+
+    # remove common markdown punctuation including asterisks
+    cleaned = re.sub(r"[*_`#~>]", "", text)
+
+    # replace spaced dashes with comma separator
+    cleaned = cleaned.replace(" - ", ", ")
+
+    # collapse whitespace
+    return " ".join(cleaned.split())
 
 
 def text_to_speech_elevenlabs(text: str) -> bytes:
@@ -25,6 +46,11 @@ def text_to_speech_elevenlabs(text: str) -> bytes:
         raise RuntimeError("ELEVENLABS_API_KEY is missing. Set it in your environment.")
 
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+    print(f"[TTS] ElevenLabs Voice ID in use: {ELEVENLABS_VOICE_ID}")
+    # Clean text for better speech rendering
+    text = clean_for_speech(text)
+    if not text.strip():
+        raise ValueError("Text became empty after cleaning.")
 
     headers = {
         "Accept": "audio/mpeg",
@@ -34,12 +60,12 @@ def text_to_speech_elevenlabs(text: str) -> bytes:
 
     payload = {
         "text": text,
-        "model_id": "eleven_multilingual_v2",
+        "model_id": "eleven_turbo_v2_5",
         "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.75,
-            "style": 0.4,
-            "use_speaker_boost": True,
+            "stability": 0.35,
+            "similarity_boost": 0.80,
+            "style": 0.55,
+            "use_speaker_boost": False,
         },
     }
 
@@ -65,7 +91,7 @@ def text_to_speech_gtts(text: str) -> bytes:
         raise ValueError("text_to_speech_gtts: text must not be empty.")
 
     mp3_buffer = io.BytesIO()
-    tts = gTTS(text=text, lang="hi")
+    tts = gTTS(text=text, lang="en")
     tts.write_to_fp(mp3_buffer)
     return mp3_buffer.getvalue()
 
@@ -78,5 +104,6 @@ def text_to_speech(text: str) -> bytes:
 
     try:
         return text_to_speech_elevenlabs(text)
-    except Exception:
+    except Exception as e:
+        print(f"[TTS] ElevenLabs failed: {e} — falling back to gTTS")
         return text_to_speech_gtts(text)
